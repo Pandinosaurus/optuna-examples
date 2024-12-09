@@ -10,16 +10,16 @@ on:
 
 jobs:
   examples:
-
+    if: (github.event_name == 'schedule' && github.repository == 'optuna/optuna-examples') || (github.event_name != 'schedule')
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: setup-python${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install (apt)
@@ -32,6 +32,8 @@ jobs:
         pip install --progress-bar off -U setuptools
         pip install git+https://github.com/optuna/optuna.git
         python -c 'import optuna'
+        pip install git+https://github.com/optuna/optuna-integration.git
+        python -c 'import optuna_integration'
 
         pip install -r pytorch/requirements.txt
     - name: Run PyTorch examples
@@ -52,6 +54,11 @@ jobs:
         export OMPI_MCA_rmaps_base_oversubscribe=yes
         STORAGE_URL=sqlite:///example.db
         mpirun -n 2 -- python pytorch/pytorch_distributed_simple.py
+      env:
+        OMP_NUM_THREADS: 1
+    - name: Run PyTorch spawn examples
+      run: |
+        python pytorch/pytorch_distributed_spawn.py --no-cuda
       env:
         OMP_NUM_THREADS: 1
     - name: Run PyTorch Ignite examples

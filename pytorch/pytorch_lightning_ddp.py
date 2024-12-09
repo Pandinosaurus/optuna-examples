@@ -11,14 +11,15 @@ argument.
     $ python pytorch/pytorch_lightning_ddp.py [--pruning]
 
 """
+
 import argparse
 import os
 from typing import List
 from typing import Optional
 
+import lightning.pytorch as pl
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
-import pytorch_lightning as pl
 import torch
 from torch import nn
 from torch import optim
@@ -114,7 +115,6 @@ class FashionMNISTDataModule(pl.LightningDataModule):
 
 
 def objective(trial: optuna.trial.Trial) -> float:
-
     # We optimize the number of layers, hidden units in each layer and dropouts.
     n_layers = trial.suggest_int("n_layers", 1, 3)
     dropout = trial.suggest_float("dropout", 0.2, 0.5)
@@ -124,20 +124,23 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     model = LightningNet(dropout, output_dims)
     datamodule = FashionMNISTDataModule(data_dir=DIR, batch_size=BATCHSIZE)
+    callback = PyTorchLightningPruningCallback(trial, monitor="val_acc")
 
     trainer = pl.Trainer(
         logger=True,
         limit_val_batches=PERCENT_VALID_EXAMPLES,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
-        gpus=-1 if torch.cuda.is_available() else None,
-        accelerator="ddp_cpu" if not torch.cuda.is_available() else None,
-        num_processes=os.cpu_count() if not torch.cuda.is_available() else None,
-        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_acc")],
+        accelerator="auto" if torch.cuda.is_available() else "cpu",
+        devices=2,
+        callbacks=[callback],
+        strategy="ddp_spawn",
     )
     hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=datamodule)
+
+    callback.check_pruned()
 
     return trainer.callback_metrics["val_acc"].item()
 

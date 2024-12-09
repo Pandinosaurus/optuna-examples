@@ -10,15 +10,16 @@ argument.
     $ python pytorch_lightning_simple.py [--pruning]
 
 """
+
 import argparse
 import os
 from typing import List
 from typing import Optional
 
+import lightning.pytorch as pl
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
 from packaging import version
-import pytorch_lightning as pl
 import torch
 from torch import nn
 from torch import optim
@@ -29,8 +30,8 @@ from torchvision import datasets
 from torchvision import transforms
 
 
-if version.parse(pl.__version__) < version.parse("1.0.2"):
-    raise RuntimeError("PyTorch Lightning>=1.0.2 is required for this example.")
+if version.parse(pl.__version__) < version.parse("1.6.0"):
+    raise RuntimeError("PyTorch Lightning>=1.6.0 is required for this example.")
 
 PERCENT_VALID_EXAMPLES = 0.1
 BATCHSIZE = 128
@@ -40,7 +41,7 @@ DIR = os.getcwd()
 
 
 class Net(nn.Module):
-    def __init__(self, dropout: float, output_dims: List[int]):
+    def __init__(self, dropout: float, output_dims: List[int]) -> None:
         super().__init__()
         layers: List[nn.Module] = []
 
@@ -53,7 +54,7 @@ class Net(nn.Module):
 
         layers.append(nn.Linear(input_dim, CLASSES))
 
-        self.layers: nn.Module = nn.Sequential(*layers)
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         logits = self.layers(data)
@@ -61,19 +62,19 @@ class Net(nn.Module):
 
 
 class LightningNet(pl.LightningModule):
-    def __init__(self, dropout: float, output_dims: List[int]):
+    def __init__(self, dropout: float, output_dims: List[int]) -> None:
         super().__init__()
         self.model = Net(dropout, output_dims)
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         return self.model(data.view(-1, 28 * 28))
 
-    def training_step(self, batch, batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: List[torch.Tensor], batch_idx: int) -> torch.Tensor:
         data, target = batch
         output = self(data)
         return F.nll_loss(output, target)
 
-    def validation_step(self, batch, batch_idx: int) -> None:
+    def validation_step(self, batch: List[torch.Tensor], batch_idx: int) -> None:
         data, target = batch
         output = self(data)
         pred = output.argmax(dim=1, keepdim=True)
@@ -117,7 +118,6 @@ class FashionMNISTDataModule(pl.LightningDataModule):
 
 
 def objective(trial: optuna.trial.Trial) -> float:
-
     # We optimize the number of layers, hidden units in each layer and dropouts.
     n_layers = trial.suggest_int("n_layers", 1, 3)
     dropout = trial.suggest_float("dropout", 0.2, 0.5)
@@ -133,7 +133,8 @@ def objective(trial: optuna.trial.Trial) -> float:
         limit_val_batches=PERCENT_VALID_EXAMPLES,
         enable_checkpointing=False,
         max_epochs=EPOCHS,
-        gpus=1 if torch.cuda.is_available() else None,
+        accelerator="auto",
+        devices=1,
         callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_acc")],
     )
     hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
@@ -154,9 +155,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    pruner: optuna.pruners.BasePruner = (
-        optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
-    )
+    pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
 
     study = optuna.create_study(direction="maximize", pruner=pruner)
     study.optimize(objective, n_trials=100, timeout=600)

@@ -9,14 +9,19 @@ subset of it.
 """
 
 import shutil
+import sys
 import tempfile
 import urllib
 
 import optuna
+from packaging import version
 import tensorflow_datasets as tfds
 
 import tensorflow as tf
 
+
+if version.parse(tf.__version__) >= version.parse("2.16.0"):
+    raise RuntimeError("tensorflow<2.16.0 is required for this example.")
 
 # TODO(crcrpar): Remove the below three lines once everything is ok.
 # Register a global custom opener to avoid HTTP Error 403: Forbidden when downloading MNIST.
@@ -60,11 +65,11 @@ def create_optimizer(trial):
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "SGD"])
     if optimizer_name == "Adam":
         adam_lr = trial.suggest_float("adam_lr", 1e-5, 1e-1, log=True)
-        return lambda: tf.keras.optimizers.Adam(learning_rate=adam_lr)
+        return lambda: tf.keras.optimizers.legacy.Adam(learning_rate=adam_lr)
     else:
         sgd_lr = trial.suggest_float("sgd_lr", 1e-5, 1e-1, log=True)
         sgd_momentum = trial.suggest_float("sgd_momentum", 1e-5, 1e-1, log=True)
-        return lambda: tf.keras.optimizers.SGD(learning_rate=sgd_lr, momentum=sgd_momentum)
+        return lambda: tf.keras.optimizers.legacy.SGD(learning_rate=sgd_lr, momentum=sgd_momentum)
 
 
 def create_classifier(trial):
@@ -119,4 +124,10 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.version_info >= (3, 12):
+        raise RuntimeError(
+            "Use Keras APIs instead of Estimator API in TensorFlow. "
+            "For more details, please check the TensorFlow migration guide: "
+            "https://www.tensorflow.org/guide/migrate/migrating_estimator"
+        )
     main()

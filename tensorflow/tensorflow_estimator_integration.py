@@ -12,15 +12,20 @@ You can run this example as follows:
 """
 
 import shutil
+import sys
 import tempfile
 import urllib
 
 import optuna
 from optuna.trial import TrialState
+from packaging import version
 import tensorflow_datasets as tfds
 
 import tensorflow as tf
 
+
+if version.parse(tf.__version__) >= version.parse("2.16.0"):
+    raise RuntimeError("tensorflow<2.16.0 is required for this example.")
 
 # TODO(crcrpar): Remove the below three lines once everything is ok.
 # Register a global custom opener to avoid HTTP Error 403: Forbidden when downloading MNIST.
@@ -78,7 +83,7 @@ def create_classifier(trial):
         hidden_units=hidden_units,
         model_dir=model_dir,
         n_classes=10,
-        optimizer=lambda: tf.keras.optimizers.Adam(learning_rate=0.01),
+        optimizer=lambda: tf.keras.optimizers.legacy.Adam(learning_rate=0.01),
         config=config,
     )
 
@@ -129,4 +134,11 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.version_info >= (3, 12):
+        raise RuntimeError(
+            "Use `optuna_integration.KerasPruningCallback` instead, "
+            "because TensorFlow recommends migrating from Estimator to Keras APIs. "
+            "For more details, please check the TensorFlow migration guide: "
+            "https://www.tensorflow.org/guide/migrate/migrating_estimator"
+        )
     main()

@@ -9,7 +9,7 @@ You can run this example as follows:
     $ python lightgbm_integration.py
 
 """
-import numpy as np
+
 import optuna
 
 import lightgbm as lgb
@@ -45,9 +45,7 @@ def objective(trial):
     gbm = lgb.train(param, dtrain, valid_sets=[dvalid], callbacks=[pruning_callback])
 
     preds = gbm.predict(valid_x)
-    pred_labels = np.rint(preds)
-    accuracy = sklearn.metrics.accuracy_score(valid_y, pred_labels)
-    return accuracy
+    return sklearn.metrics.roc_auc_score(valid_y, preds)
 
 
 if __name__ == "__main__":

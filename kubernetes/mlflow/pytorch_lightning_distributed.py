@@ -1,9 +1,9 @@
 import os
 
+import lightning.pytorch as pl
+from lightning.pytorch import Callback
 import optuna
 from optuna.integration.mlflow import MLflowCallback
-import pytorch_lightning as pl
-from pytorch_lightning import Callback
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -96,7 +96,6 @@ class LightningNet(pl.LightningModule):
 
 
 def objective(trial):
-    # Clear clutter from previous Keras session graphs.
     metrics_callback = MetricsCallback()
     trainer = pl.Trainer(
         logger=False,
